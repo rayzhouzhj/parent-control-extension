@@ -17,5 +17,10 @@
     "service_worker": "service_worker.js",
     "type": "module"
   },
-  "options_page": "index.html#options"
+  "content_scripts": [
+   {
+      "matches": ["<all_urls>"],
+      "js": ["static/js/content.js"]
+   }
+  ]
 }
