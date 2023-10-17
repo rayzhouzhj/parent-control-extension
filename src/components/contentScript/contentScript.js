@@ -16,6 +16,8 @@ function ContentScript() {
 
     chrome.runtime.onMessage.addListener((message) => {
         setMessage(message.value);
+        console.log("receiving message from background script")
+        console.log(message.value);
         if (message.value === "openPopup") {
             setOpen(true);
         }
@@ -24,7 +26,7 @@ function ContentScript() {
     if (!open) return null;
 
     return (
-        <Box className={{
+        <Box style={{
             position: "fixed",
             top: 0,
             right: 0,
