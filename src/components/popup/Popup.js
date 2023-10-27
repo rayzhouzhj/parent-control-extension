@@ -69,29 +69,54 @@ const marks = [
     }
 ];
 
-export const getCurrentTabUId = (callback) => {
-    const queryInfo = { active: true, currentWindow: true };
-
-    chrome.tabs &&
-        chrome.tabs.query(queryInfo, (tabs) => {
-            callback(tabs[0].id);
-        });
-};
-
 function Popup() {
     const [block, setBlock] = React.useState(false);
     const [blockBy, setBlockBy] = React.useState('domain');
 
     React.useEffect(() => {
+        console.log('Popup mounted');
+        const fetchData = async () => {
+            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                const url = tabs[0].url;
+                const hostname = new URL(url).hostname;
+                // Send a message to the background script
+                chrome.runtime.sendMessage({ action: 'getBlockStatus', domain: hostname });
+
+                // Listen for the response from the background script
+                chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+                    console.log('Received message:', message);
+                    if (message.action === 'sendBlockStatus' && message.domain === hostname) {
+                        const receivedData = message.blockStatus;
+                        console.log('Received data:', receivedData);
+                        // Update the state with the received data
+                        setBlock(message.blockStatus);
+                        setBlockBy(message.blockBy);
+                    }
+                });
+            });
+        };
+
+        fetchData();
+    }, []);
+
+    React.useEffect(() => {
+        console.log('Popup state changed');
         console.log('Switch value:', block);
         console.log('Slider value:', blockBy);
 
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
             const url = tabs[0].url;
+            const hostname = new URL(url).hostname;
+
+            console.log('BlockBy value:', blockBy === 'domain' ? hostname : url);
             chrome.runtime.sendMessage({
-                action: block ? 'block' : 'unblock',
-                blockBy,
-                url,
+                type: 'BlockControl',
+                data: {
+                    action: block ? 'block' : 'unblock',
+                    blockBy: blockBy,
+                    domain: hostname,
+                    blockByValue: blockBy === 'domain' ? hostname : url
+                }
             });
         });
     }, [block, blockBy]);
@@ -117,7 +142,7 @@ function Popup() {
                 <Box sx={{ width: 260 }}>
                     <Stack direction="row" spacing={1} alignItems="center">
                         <Typography>Off</Typography>
-                        <AntSwitch inputProps={{ 'aria-label': 'ant design' }} onChange={handleSwitchChange}/>
+                        <AntSwitch inputProps={{ 'aria-label': 'ant design' }} checked={block} onChange={handleSwitchChange}/>
                         <Typography>On</Typography>
                     </Stack>
                 </Box>
@@ -126,7 +151,7 @@ function Popup() {
                 <Box sx={{ width: 260 }}>
                     <Slider
                         aria-label="Custom marks"
-                        defaultValue={0}
+                        value={blockBy === 'domain' ? 0 : 100}
                         step={null}
                         valueLabelDisplay="off"
                         marks={marks}
