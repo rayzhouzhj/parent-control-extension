@@ -80,7 +80,7 @@ function Popup() {
                 const url = tabs[0].url;
                 const hostname = new URL(url).hostname;
                 // Send a message to the background script
-                chrome.runtime.sendMessage({ action: 'getBlockStatus', domain: hostname });
+                chrome.runtime.sendMessage({ action: 'getBlockStatus', domain: hostname, url: url });
 
                 // Listen for the response from the background script
                 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -107,15 +107,14 @@ function Popup() {
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
             const url = tabs[0].url;
             const hostname = new URL(url).hostname;
-
-            console.log('BlockBy value:', blockBy === 'domain' ? hostname : url);
+            // Send a message to the background script
             chrome.runtime.sendMessage({
                 type: 'BlockControl',
                 data: {
                     action: block ? 'block' : 'unblock',
                     blockBy: blockBy,
                     domain: hostname,
-                    blockByValue: blockBy === 'domain' ? hostname : url
+                    url: url
                 }
             });
         });

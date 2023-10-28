@@ -8,19 +8,18 @@
   },
   "permissions": [ "tabs", "storage" ],
   "host_permissions": [
-    "https://www.blogger.com/"
+    "<all_urls>"
   ],
   "optional_host_permissions": [
-    "*://*/*"
   ],
   "background": {
     "service_worker": "service_worker.js",
     "type": "module"
   },
   "content_scripts": [
-   {
+    {
       "matches": ["<all_urls>"],
       "js": ["static/js/content.js"]
-   }
+    }
   ]
 }

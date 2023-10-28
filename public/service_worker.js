@@ -1,24 +1,63 @@
 /* global chrome */
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'getBlockStatus') {
+/**
+ * 
+ * @param {*} domain 
+ * @returns 
+ */
+async function shouldBlockPage(url) {
+    return await new Promise((resolve, reject) => {
         chrome.storage.local.get(["BlockControl"]).then((result) => {
-            console.log('BlockControl' in result);
-            if ('BlockControl' in result) {
-                // Retrieve the existing data
-                const existingData = result.BlockControl;
-                console.log("Value currently is " + existingData);
-                // Check if the new entry already exists
-                const entryIndex = existingData.findIndex(entry => entry.domain === message.domain);
-                if (entryIndex !== -1) {
-                    // Send a message to the popup script
-                    const blockBy = existingData[entryIndex].blockBy;
-                    chrome.runtime.sendMessage({ action: 'sendBlockStatus', domain: message.domain, blockBy: blockBy, blockStatus: true });
-                } else {
-                    chrome.runtime.sendMessage({ action: 'sendBlockStatus', domain: message.domain, blockBy: 'domain', blockStatus: false });
+            const { BlockControl } = result;
+            if (BlockControl) {
+                const existingData = BlockControl;
+                const domain = new URL(url).hostname;
+                const entryIndex = existingData.findIndex(entry => entry.domain === domain);
+
+                if (entryIndex === -1) {
+                    resolve({ blockStatus: false });
+                    return;
                 }
+
+                const entry = existingData[entryIndex];
+                if (entry.blockBy === 'domain' || (entry.blockBy === 'url' && url.includes(entry.url))) {
+                    resolve(Object.assign(entry, { blockStatus: true }));
+                    return;
+                }
+
+                resolve({ blockStatus: false });
             }
+            // if ('BlockControl' in result) {
+            //     // Retrieve the existing data
+            //     const existingData = result.BlockControl;
+            //     const domain = new URL(url).hostname;
+            //     // Check if the new entry already exists
+            //     const entryIndex = existingData.findIndex(entry => entry.domain === domain);
+            //     if (entryIndex !== -1) {
+            //         const entry = existingData[entryIndex];
+            //         if (entry.blockBy === 'domain' 
+            //             || (entry.blockBy === 'url' && url.indexOf(entry.url) > -1)) {
+            //             resolve(Object.assign(entry, {blockStatus: true}));
+            //         } else {
+            //             resolve({ blockStatus: false });
+            //         }
+            //     } else {
+            //         resolve({ blockStatus: false });
+            //     }
+            // }
         });
+    });
+}
+
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+    if (message.action === 'getBlockStatus') {
+        const result = await shouldBlockPage(message.url);
+        if (result.blockStatus) {
+            // Send a message to the popup script
+            chrome.runtime.sendMessage({ action: 'sendBlockStatus', domain: result.domain, blockBy: result.blockBy, blockStatus: true });
+        } else {
+            chrome.runtime.sendMessage({ action: 'sendBlockStatus', domain: result.domain, blockBy: 'domain', blockStatus: false });
+        }
     }
 });
 
@@ -73,21 +112,95 @@ chrome.runtime.onMessage.addListener(
     }
 );
 
-chrome.storage.local.get(['blocked', 'enabled'], function (local) {
-    var blocked = local.blocked || [];
-    var enabled = local.enabled;
+// chrome.webNavigation.onCommitted.addListener((details) => {
+//     // Check if the page is blocked based on your condition
+//     const data = shouldBlockPage(details.url);
 
-    if (!enabled) return;
+//     if (data.blockStatus) {
+//         // Inject content script into the blocked page
+//         // chrome.scripting.executeScript({
+//         //     target: { tabId: details.tabId },
+//         //     files: ["redirect.js"]
+//         // });
+//         console.log('This website is blocked');
+//     } else {
+//         console.log('This website is not blocked');
+//     }
+// });
 
-    chrome.webRequest.onBeforeRequest.addListener(
-        function (details) {
-            for (var i = 0; i < blocked.length; i++) {
-                if (details.url.indexOf(blocked[i]) > -1) {
-                    return { cancel: true };
-                }
-            }
-        },
-        { urls: ["<all_urls>"] },
-        ["blocking"]
-    );
-});
+// chrome.webRequest.onBeforeRequest.addListener(
+//     function (details) {
+//         chrome.storage.local.get(["BlockControl"]).then((result) => {
+//             console.log('BlockControl' in result);
+//             if ('BlockControl' in result) {
+//                 // Retrieve the existing data
+//                 const existingData = result.BlockControl;
+//                 console.log("Value currently is " + existingData);
+//                 chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+//                     const url = tabs[0].url;
+//                     const hostname = new URL(url).hostname;
+//                     // Check if the new entry already exists
+//                     const entryIndex = existingData.findIndex(entry => entry.domain === hostname);
+//                     if (entryIndex !== -1) {
+//                         console.log('This website is blocked');
+//                     } else {
+//                         console.log('This website is not blocked');
+//                     }
+//                 });
+//             }
+//         });
+//     },
+//     { urls: ["<all_urls>"] },
+//     ["blocking"]
+// );
+
+// chrome.storage.local.get(["BlockControl"]).then((result) => {
+//     console.log('BlockControl' in result);
+//     if ('BlockControl' in result) {
+//         // Retrieve the existing data
+//         const existingData = result.BlockControl;
+//         console.log("Value currently is " + existingData);
+//         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+//             const url = tabs[0].url;
+//             const hostname = new URL(url).hostname;
+//             // Check if the new entry already exists
+//             const entryIndex = existingData.findIndex(entry => entry.domain === hostname);
+//             if (entryIndex !== -1) {
+//                 chrome.webRequest.onBeforeRequest.addListener(
+//                     function (details) {
+//                         console.log('This website is blocked');
+//                         // for (var i = 0; i < blocked.length; i++) {
+//                         //     if (details.url.indexOf(blocked[i]) > -1) {
+//                         //         return { cancel: true };
+//                         //     }
+//                         // }
+
+//                     },
+//                     { urls: ["<all_urls>"] },
+//                     ["blocking"]
+//                 );
+//             } else {
+//                 console.log('This website is not blocked');
+//             }
+//         });
+//     }
+// });
+
+// chrome.storage.local.get(['BlockControl'], function (local) {
+//     var blocked = local.blocked || [];
+//     var enabled = local.enabled;
+
+//     if (!enabled) return;
+
+//     chrome.webRequest.onBeforeRequest.addListener(
+//         function (details) {
+//             for (var i = 0; i < blocked.length; i++) {
+//                 if (details.url.indexOf(blocked[i]) > -1) {
+//                     return { cancel: true };
+//                 }
+//             }
+//         },
+//         { urls: ["<all_urls>"] },
+//         ["blocking"]
+//     );
+// });
