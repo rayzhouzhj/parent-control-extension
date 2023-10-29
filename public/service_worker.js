@@ -24,50 +24,42 @@ async function shouldBlockPage(url) {
                     resolve(Object.assign(entry, { blockStatus: true }));
                     return;
                 }
-
-                resolve({ blockStatus: false });
             }
-            // if ('BlockControl' in result) {
-            //     // Retrieve the existing data
-            //     const existingData = result.BlockControl;
-            //     const domain = new URL(url).hostname;
-            //     // Check if the new entry already exists
-            //     const entryIndex = existingData.findIndex(entry => entry.domain === domain);
-            //     if (entryIndex !== -1) {
-            //         const entry = existingData[entryIndex];
-            //         if (entry.blockBy === 'domain' 
-            //             || (entry.blockBy === 'url' && url.indexOf(entry.url) > -1)) {
-            //             resolve(Object.assign(entry, {blockStatus: true}));
-            //         } else {
-            //             resolve({ blockStatus: false });
-            //         }
-            //     } else {
-            //         resolve({ blockStatus: false });
-            //     }
-            // }
+
+            resolve({ blockStatus: false });
         });
     });
 }
 
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log(sender.tab ?
+        "from a content script:" + sender.tab.url :
+        "from the extension");
+    console.log(message);
+    var response = {};
     if (message.action === 'getBlockStatus') {
-        const result = await shouldBlockPage(message.url);
-        if (result.blockStatus) {
-            // Send a message to the popup script
-            chrome.runtime.sendMessage({ action: 'sendBlockStatus', domain: result.domain, blockBy: result.blockBy, blockStatus: true });
-        } else {
-            chrome.runtime.sendMessage({ action: 'sendBlockStatus', domain: result.domain, blockBy: 'domain', blockStatus: false });
-        }
+        shouldBlockPage(message.url).then((result) => {
+            if (result.blockStatus) {
+                response = { action: 'sendBlockStatus', domain: message.domain, blockBy: result.blockBy, blockStatus: true };
+            } else {
+                response = { action: 'sendBlockStatus', domain: message.domain, blockBy: 'domain', blockStatus: false };
+            }
+
+            if (sender.tab) {
+                // Send a message to the content script
+                sendResponse(response);
+            } else {
+                // Send a message to the popup script
+                chrome.runtime.sendMessage(response);
+            } 
+        });
     }
 });
 
 chrome.runtime.onMessage.addListener(
-    function (request, sender, sendResponse) {
-        console.log(sender.tab ?
-            "from a content script:" + sender.tab.url :
-            "from the extension");
-        if (request.type === "BlockControl") {
-            let newData = request.data;
+    function (message, sender, sendResponse) {
+        if (message.type === "BlockControl") {
+            let newData = message.data;
             chrome.storage.local.get(["BlockControl"]).then((result) => {
                 console.log('BlockControl' in result);
                 if ('BlockControl' in result) {

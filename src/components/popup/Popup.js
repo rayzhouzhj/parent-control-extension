@@ -75,8 +75,8 @@ function Popup() {
 
     React.useEffect(() => {
         console.log('Popup mounted');
-        const fetchData = async () => {
-            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        // const fetchData = async () => {
+            chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
                 const url = tabs[0].url;
                 const hostname = new URL(url).hostname;
                 // Send a message to the background script
@@ -94,9 +94,9 @@ function Popup() {
                     }
                 });
             });
-        };
+        // };
 
-        fetchData();
+        // fetchData();
     }, []);
 
     React.useEffect(() => {
