@@ -75,28 +75,29 @@ function Popup() {
 
     React.useEffect(() => {
         console.log('Popup mounted');
-        // const fetchData = async () => {
-            chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-                const url = tabs[0].url;
-                const hostname = new URL(url).hostname;
-                // Send a message to the background script
-                chrome.runtime.sendMessage({ action: 'getBlockStatus', domain: hostname, url: url });
-
-                // Listen for the response from the background script
-                chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-                    console.log('Received message:', message);
-                    if (message.action === 'sendBlockStatus' && message.domain === hostname) {
-                        const receivedData = message.blockStatus;
-                        console.log('Received data:', receivedData);
-                        // Update the state with the received data
-                        setBlock(message.blockStatus);
-                        setBlockBy(message.blockBy);
-                    }
-                });
+        chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+            const url = tabs[0].url;
+            const hostname = new URL(url).hostname;
+            // Send a message to the background script
+            chrome.runtime.sendMessage({
+                action: 'GetBlockStatus', 
+                domain: hostname, 
+                url: url,
+                responseType: 'PopupGetBlockStatusResp'
             });
-        // };
 
-        // fetchData();
+            // Listen for the response from the background script
+            chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+                console.log('Received message:', message);
+                if (message.action === 'PopupGetBlockStatusResp' && message.domain === hostname) {
+                    const receivedData = message.blockStatus;
+                    console.log('Received data:', receivedData);
+                    // Update the state with the received data
+                    setBlock(message.blockStatus);
+                    setBlockBy(message.blockBy);
+                }
+            });
+        });
     }, []);
 
     React.useEffect(() => {

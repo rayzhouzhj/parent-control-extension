@@ -33,16 +33,17 @@ async function shouldBlockPage(url) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log(sender.tab ?
-        "from a content script:" + sender.tab.url :
+        "from a content script: " + sender.tab.url :
         "from the extension");
     console.log(message);
-    var response = {};
-    if (message.action === 'getBlockStatus') {
+
+    if (message.action === 'GetBlockStatus') {
         shouldBlockPage(message.url).then((result) => {
+            var response = {};
             if (result.blockStatus) {
-                response = { action: 'sendBlockStatus', domain: message.domain, blockBy: result.blockBy, blockStatus: true };
+                response = { action: message.responseType, domain: message.domain, blockBy: result.blockBy, blockStatus: true };
             } else {
-                response = { action: 'sendBlockStatus', domain: message.domain, blockBy: 'domain', blockStatus: false };
+                response = { action: message.responseType, domain: message.domain, blockBy: 'domain', blockStatus: false };
             }
 
             if (sender.tab) {
@@ -51,8 +52,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             } else {
                 // Send a message to the popup script
                 chrome.runtime.sendMessage(response);
-            } 
+            }
+        }).catch((error) => {
+            console.error('Error in shouldBlockPage:', error);
+            sendResponse({ error: 'An error occurred' });
         });
+
+        // Return true to indicate that sendResponse will be used asynchronously
+        return true;
     }
 });
 
@@ -103,96 +110,3 @@ chrome.runtime.onMessage.addListener(
         }
     }
 );
-
-// chrome.webNavigation.onCommitted.addListener((details) => {
-//     // Check if the page is blocked based on your condition
-//     const data = shouldBlockPage(details.url);
-
-//     if (data.blockStatus) {
-//         // Inject content script into the blocked page
-//         // chrome.scripting.executeScript({
-//         //     target: { tabId: details.tabId },
-//         //     files: ["redirect.js"]
-//         // });
-//         console.log('This website is blocked');
-//     } else {
-//         console.log('This website is not blocked');
-//     }
-// });
-
-// chrome.webRequest.onBeforeRequest.addListener(
-//     function (details) {
-//         chrome.storage.local.get(["BlockControl"]).then((result) => {
-//             console.log('BlockControl' in result);
-//             if ('BlockControl' in result) {
-//                 // Retrieve the existing data
-//                 const existingData = result.BlockControl;
-//                 console.log("Value currently is " + existingData);
-//                 chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-//                     const url = tabs[0].url;
-//                     const hostname = new URL(url).hostname;
-//                     // Check if the new entry already exists
-//                     const entryIndex = existingData.findIndex(entry => entry.domain === hostname);
-//                     if (entryIndex !== -1) {
-//                         console.log('This website is blocked');
-//                     } else {
-//                         console.log('This website is not blocked');
-//                     }
-//                 });
-//             }
-//         });
-//     },
-//     { urls: ["<all_urls>"] },
-//     ["blocking"]
-// );
-
-// chrome.storage.local.get(["BlockControl"]).then((result) => {
-//     console.log('BlockControl' in result);
-//     if ('BlockControl' in result) {
-//         // Retrieve the existing data
-//         const existingData = result.BlockControl;
-//         console.log("Value currently is " + existingData);
-//         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-//             const url = tabs[0].url;
-//             const hostname = new URL(url).hostname;
-//             // Check if the new entry already exists
-//             const entryIndex = existingData.findIndex(entry => entry.domain === hostname);
-//             if (entryIndex !== -1) {
-//                 chrome.webRequest.onBeforeRequest.addListener(
-//                     function (details) {
-//                         console.log('This website is blocked');
-//                         // for (var i = 0; i < blocked.length; i++) {
-//                         //     if (details.url.indexOf(blocked[i]) > -1) {
-//                         //         return { cancel: true };
-//                         //     }
-//                         // }
-
-//                     },
-//                     { urls: ["<all_urls>"] },
-//                     ["blocking"]
-//                 );
-//             } else {
-//                 console.log('This website is not blocked');
-//             }
-//         });
-//     }
-// });
-
-// chrome.storage.local.get(['BlockControl'], function (local) {
-//     var blocked = local.blocked || [];
-//     var enabled = local.enabled;
-
-//     if (!enabled) return;
-
-//     chrome.webRequest.onBeforeRequest.addListener(
-//         function (details) {
-//             for (var i = 0; i < blocked.length; i++) {
-//                 if (details.url.indexOf(blocked[i]) > -1) {
-//                     return { cancel: true };
-//                 }
-//             }
-//         },
-//         { urls: ["<all_urls>"] },
-//         ["blocking"]
-//     );
-// });
