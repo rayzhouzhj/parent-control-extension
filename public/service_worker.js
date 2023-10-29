@@ -12,17 +12,23 @@ async function shouldBlockPage(url) {
             if (BlockControl) {
                 const existingData = BlockControl;
                 const domain = new URL(url).hostname;
-                const entryIndex = existingData.findIndex(entry => entry.domain === domain);
+                const matchingDomain = existingData.filter(entry => entry.domain === domain);
 
-                if (entryIndex === -1) {
+                if (matchingDomain.length === 0) {
                     resolve({ blockStatus: false });
                     return;
                 }
 
-                const entry = existingData[entryIndex];
-                if (entry.blockBy === 'domain' || (entry.blockBy === 'url' && url.includes(entry.url))) {
+                if (matchingDomain.some(entry => entry.blockBy === 'domain')) {
+                    const entry = matchingDomain.find(entry => entry.blockBy === 'domain');
                     resolve(Object.assign(entry, { blockStatus: true }));
                     return;
+                } else if (matchingDomain.some(entry => entry.blockBy === 'url')) {
+                    const entry = matchingDomain.find(entry => entry.blockBy === 'url' && url.includes(entry.url));
+                    if (entry) {
+                        resolve(Object.assign(entry, { blockStatus: true }));
+                        return;
+                    }
                 }
             }
 
@@ -34,8 +40,7 @@ async function shouldBlockPage(url) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log(sender.tab ?
         "from a content script: " + sender.tab.url :
-        "from the extension");
-    console.log(message);
+        "from the extension", message);
 
     if (message.action === 'GetBlockStatus') {
         shouldBlockPage(message.url).then((result) => {
@@ -68,24 +73,21 @@ chrome.runtime.onMessage.addListener(
         if (message.type === "BlockControl") {
             let newData = message.data;
             chrome.storage.local.get(["BlockControl"]).then((result) => {
-                console.log('BlockControl' in result);
                 if ('BlockControl' in result) {
                     // Retrieve the existing data
                     const existingData = result.BlockControl;
                     var updatedData = [...existingData];
-                    // Check if the new entry already exists
-                    const entryIndex = existingData.findIndex(entry => entry.domain === newData.domain);
 
-                    if (entryIndex !== -1) {
-                        if (newData.action === 'block') {
-                            // Entry already exists, update the existing entry
-                            updatedData[entryIndex] = newData;
-                        } else {
-                            // Entry already exists, remove the entry
-                            updatedData.splice(entryIndex, 1);
-                        }
+                    if(newData.blockBy === 'domain') {
+                        // Remove all entries with the same domain
+                        updatedData = updatedData.filter(entry => entry.domain !== newData.domain);
                     } else {
-                        // Entry does not exist, add the new entry
+                        // Remove all entries with the same url
+                        updatedData = updatedData.filter(entry => entry.url !== newData.url);
+                    }
+
+                    // Add entry for the new data if it is a block action
+                    if (newData.action === 'block') {
                         updatedData.push(newData);
                     }
 

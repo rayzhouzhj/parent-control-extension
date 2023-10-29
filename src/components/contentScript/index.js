@@ -10,8 +10,7 @@ console.log('Content script injected successfully');
             url: window.location.href,
             responseType: 'ContentGetBlockStatusResp'
         });
-        console.log('ContentScript: receiving response from background script');
-        console.log(response);
+        console.log('ContentScript: receiving response from background script', response);
         if(response.blockStatus) {
             window.location.href = 'https://www.google.com';
             // window.location.href = chrome.runtime.getURL('blocked.html');

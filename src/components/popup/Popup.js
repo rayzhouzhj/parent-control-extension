@@ -73,52 +73,74 @@ function Popup() {
     const [block, setBlock] = React.useState(false);
     const [blockBy, setBlockBy] = React.useState('domain');
 
+    const prevBlockRef = React.useRef(block);
+    const prevBlockByRef = React.useRef(blockBy);
+
     React.useEffect(() => {
         console.log('Popup mounted');
         chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
             const url = tabs[0].url;
             const hostname = new URL(url).hostname;
             // Send a message to the background script
-            chrome.runtime.sendMessage({
-                action: 'GetBlockStatus', 
-                domain: hostname, 
-                url: url,
-                responseType: 'PopupGetBlockStatusResp'
-            });
+            const messageSentFlag = '__message_sent_flag__'; // Unique flag to track whether the message has been sent
+            const messageSent = sessionStorage.getItem(messageSentFlag);
+            if (!messageSent) {
+                chrome.runtime.sendMessage({
+                    action: 'GetBlockStatus',
+                    domain: hostname,
+                    url: url,
+                    responseType: 'PopupGetBlockStatusResp'
+                });
+                sessionStorage.setItem(messageSentFlag, 'true'); // Set the flag to indicate that the message has been sent
+            }
+        });
 
-            // Listen for the response from the background script
-            chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        // Listener for the response from the background script
+        const messageListener = (message, sender, sendResponse) => {
+            if (message.action === 'PopupGetBlockStatusResp') {
                 console.log('Received message:', message);
-                if (message.action === 'PopupGetBlockStatusResp' && message.domain === hostname) {
-                    const receivedData = message.blockStatus;
-                    console.log('Received data:', receivedData);
-                    // Update the state with the received data
-                    setBlock(message.blockStatus);
+                // Update the state with the received data when the block status is true
+                if (message.blockStatus) {
+                    setBlock(true);
                     setBlockBy(message.blockBy);
                 }
-            });
-        });
+            }
+        };
+
+        // Register the listener
+        chrome.runtime.onMessage.addListener(messageListener);
+
+        // Cleanup: Remove the listener when the component unmounts
+        return () => {
+            chrome.runtime.onMessage.removeListener(messageListener);
+        };
     }, []);
 
     React.useEffect(() => {
-        console.log('Popup state changed');
-        console.log('Switch value:', block);
-        console.log('Slider value:', blockBy);
+        if (block !== prevBlockRef.current || (block && blockBy !== prevBlockByRef.current)) {
+            console.log('Popup state changed');
+            console.log('Switch value:', block);
+            console.log('Slider value:', blockBy);
 
-        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-            const url = tabs[0].url;
-            const hostname = new URL(url).hostname;
-            // Send a message to the background script
-            chrome.runtime.sendMessage({
-                type: 'BlockControl',
-                data: {
-                    action: block ? 'block' : 'unblock',
-                    blockBy: blockBy,
-                    domain: hostname,
-                    url: url
-                }
+            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                const url = tabs[0].url;
+                const hostname = new URL(url).hostname;
+                // Send a message to the background script
+                chrome.runtime.sendMessage({
+                    type: 'BlockControl',
+                    data: {
+                        action: block ? 'block' : 'unblock',
+                        blockBy: blockBy,
+                        domain: hostname,
+                        url: url
+                    }
+                });
             });
-        });
+        }
+
+        // Update the previous state values
+        prevBlockRef.current = block;
+        prevBlockByRef.current = blockBy;
     }, [block, blockBy]);
 
     const handleSwitchChange = (event) => {
